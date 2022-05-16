@@ -1,5 +1,5 @@
 from read_files import read_jssp
-from functions import create_schedule, makespan, print_schedule, print_all_jobs
+from functions import create_schedule, makespan, print_schedule, print_all_jobs, print_total_makespan
 
 # Reading in the instance file
 jobs, machines, all_jobs = read_jssp("ft06.txt")
@@ -27,10 +27,8 @@ schedule = create_schedule(machines, jobs, all_jobs)
 print_schedule(schedule)
 print("")
 
+# Printing the total makespan
+print_total_makespan(schedule)
+print("")
 
-time_per_machine = [0] * machines
-for w in range(len(schedule)):
-    for y in range(len(schedule[w])):
-        time_ = schedule[w][y][1]
-        time_per_machine[w] += time_
-print(f'Die gesamte Produktionsdauer beträgt: {max(time_per_machine)} Zeiteinheiten')
+
