@@ -54,8 +54,11 @@ def create_schedule(machines, jobs, all_jobs):
     # Empty schedule to be filled
     schedule = [[] for _ in range(machines)]
 
+    # Calculate number of remaining tasks in all_jobs
+    number_tasks = remaining_tasks(all_jobs)
+
     # For every task that exists we successively find the next one to schedule
-    for _ in range(jobs * machines):
+    for _ in range(number_tasks):
 
         # Getting the release times for each job
         release_times = release_time(jobs, machines, schedule)
@@ -116,4 +119,16 @@ def print_total_makespan(schedule):
             time_per_machine[i] += time
     print(f"The total makespan is: {max(time_per_machine)} time units")
 
+
+def remaining_tasks(all_jobs):
+    """
+    Calculate the number of remaining tasks in all_jobs
+    :param all_jobs: Nested list of all jobs
+    :return: Int. number of remaining tasks
+    """
+    number_tasks = 0
+    for job in all_jobs:
+        number_tasks += len(job)
+
+    return number_tasks
 
