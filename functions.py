@@ -104,6 +104,12 @@ def print_all_jobs(all_jobs):
         print(f"Job {i}: {all_jobs[i]}")
 
 
-# original commit
+def print_total_makespan(schedule):
+    time_per_machine = [0] * len(schedule)
+    for i in range(len(schedule)):
+        for j in range(len(schedule[i])):
+            time = schedule[i][j][1]
+            time_per_machine[i] += time
+    print(f"The total makespan is: {max(time_per_machine)} time units")
 
 
