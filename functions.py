@@ -24,7 +24,7 @@ def release_time(jobs, machines, schedule):
     :param jobs: Int. Number of jobs
     :param machines: Int. Number of machines
     :param schedule: Nested list of the current schedule
-    :return:
+U    :return: List of the release times
     """
     # Empty release_times list to be filled
     release_times = [0] * jobs
@@ -105,6 +105,10 @@ def print_all_jobs(all_jobs):
 
 
 def print_total_makespan(schedule):
+    """
+    Print out the total makespan
+    :param schedule: Nested list of the schedule
+    """
     time_per_machine = [0] * len(schedule)
     for i in range(len(schedule)):
         for j in range(len(schedule[i])):
