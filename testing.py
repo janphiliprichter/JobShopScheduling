@@ -1,34 +1,25 @@
 from read_files import read_jssp
-from functions import create_schedule, makespan, print_schedule, print_all_jobs, print_total_makespan
+from functions import schedule_jobs, combinations, rollout, print_all_jobs, print_schedule, print_total_makespan
 
-# Reading in the instance file
-jobs, machines, all_jobs = read_jssp("ft06.txt")
 
-# Printing information about the instance
-print("")
-print("Number of jobs: ", jobs)
-print("Number of machines: ", machines)
-print("")
+jobs, machines, all_jobs = read_jssp("instances/ft06.txt")
 
-# Getting and printing the makespans for the jobs
-makespans = makespan(all_jobs)
-print("Job makespans:")
-print(makespans)
-print("")
-
-# Printing the jobs of the instance
+print("All jobs:")
 print_all_jobs(all_jobs)
 print("")
 
-# Creating the schedule for the jobs
-schedule = create_schedule(machines, jobs, all_jobs)
 
-# Printing the schedule
+schedule = schedule_jobs(machines, all_jobs)
+print("Schedule without rollout:")
 print_schedule(schedule)
-print("")
-
-# Printing the total makespan
 print_total_makespan(schedule)
 print("")
 
+# We need to get the data again, because all jobs is already emptied
+_, _, all_jobs = read_jssp("instances/ft06.txt")
+final_combs = combinations(all_jobs)
+print(f"Number of starting combinations for the rollout: {len(final_combs)}")
+print("")
 
+rollout("instances/ft06.txt")
+print("")

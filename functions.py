@@ -1,6 +1,9 @@
+import time
+from read_files import read_jssp
+import numpy as np
 
 
-def makespan(all_jobs):
+def max_makespan(all_jobs):
     """
     Get the makespan times of all jobs
     :param all_jobs: Nested list of all jobs
@@ -14,77 +17,186 @@ def makespan(all_jobs):
         for task in all_jobs[job]:
             makespans[job] += task[1]
 
-    return makespans
+    return makespans.index(max(makespans))
 
 
-def release_time(jobs, machines, schedule):
+def earliest_release(schedule, next_job):
     """
-    For each job we calculate the current release time.
-    This is the earliest time the next task of the job can be executed, given the current schedule.
-    :param jobs: Int. Number of jobs
-    :param machines: Int. Number of machines
+    Create the earliest release time of the next job over all machines
     :param schedule: Nested list of the current schedule
-U    :return: List of the release times
+    :param next_job: The next job that we calculate the earliest release time for
+    :return: Int. earliest release time for the next job
     """
-    # Empty release_times list to be filled
-    release_times = [0] * jobs
+    release_times = [0] * len(schedule)
 
-    # For every machine in the schedule we calculate the release time for every job
-    # and update when we get a larger release time
-    for i in range(machines):
-        rt = 0
+    for i in range(len(schedule)):
         for j in range(len(schedule[i])):
-            job = schedule[i][j][0]
-            if isinstance(job, int):
-                if release_times[job] < rt + schedule[i][j][1]:
-                    release_times[job] = rt + schedule[i][j][1]
-            rt += schedule[i][j][1]
 
-    return release_times
+            if schedule[i][j][0] == next_job:
+                release_times[i] = sum(x[1] for x in schedule[i][:j+1])
+
+    return max(release_times)
 
 
-def create_schedule(machines, jobs, all_jobs):
+def remaining_tasks(all_jobs):
     """
-    Create a schedule for all jobs.
-    :param jobs: Int. Number of jobs
+    Calculate the number of remaining tasks in all_jobs
+    :param all_jobs: Nested list of all jobs
+    :return: Int. number of remaining tasks
+    """
+    number_tasks = 0
+    for job in all_jobs:
+        number_tasks += len(job)
+
+    return number_tasks
+
+
+def schedule_jobs(machines, all_jobs, schedule=None):
+    """
+    Schedule the jobs in all_jobs using the greedy heuristic.
     :param machines: Int. Number of machines
     :param all_jobs: Nested list of all jobs
-    :return: Nested list of the schedule
+    :param schedule: Nested list of the current schedule (optional)
+    :return: Int. number of remaining tasks
     """
-    # Empty schedule to be filled
-    schedule = [[] for _ in range(machines)]
 
-    # Calculate number of remaining tasks in all_jobs
+    # If no schedule was given, we create an empty one to fill with the jobs
+    if not schedule:
+        schedule = [[] for _ in range(machines)]
+
+    # Calculating the number of remaining tasks in all_jobs
     number_tasks = remaining_tasks(all_jobs)
 
-    # For every task that exists we successively find the next one to schedule
-    for _ in range(number_tasks):
+    # We schedule each of the remaining jobs
+    for i in range(number_tasks):
 
-        # Getting the release times for each job
-        release_times = release_time(jobs, machines, schedule)
-        # Getting the makespans for each job
-        makespans = makespan(all_jobs)
-        # Getting the index of the job with the maximum makespan
-        max_ms_ind = makespans.index(max(makespans))
-        # Getting the next task of that job
-        next_task = all_jobs[max_ms_ind][0]
-        # Getting the machine, that the next task has to be run on
+        # Find next task to be scheduled
+        next_job = max_makespan(all_jobs)
+        next_task = all_jobs[next_job][0]
+
+        # Find corresponding machine
         next_machine = next_task[0]
-        # Calculating the runtime of all tasks so far on the next machine
-        runtime_next_machine = sum([task[1] for task in schedule[next_machine]])
 
-        # When the release time of the next job is larger than the current runtime of all tasks on the machine,
-        # we have to pause the machine until the next task is ready to be executed
-        if release_times[max_ms_ind] > runtime_next_machine:
-            schedule[next_task[0]].append(("pause", release_times[max_ms_ind] - runtime_next_machine))
-            schedule[next_task[0]].append((max_ms_ind, next_task[1]))
-        # If not we can execute the task straight away
+        # Find the earliest release time of the next task
+        rt_job = earliest_release(schedule, next_job)
+
+        # Find the earliest release time for the corresponding machine
+        rt_machine = sum(x[1] for x in schedule[next_machine])
+
+        # Checking whether we can schedule the job straight away or if we need to insert idle time on the machine first
+        if rt_job > rt_machine:
+            schedule[next_machine].append((-1, (rt_job - rt_machine)))
+            schedule[next_machine].append((next_job, next_task[1]))
         else:
-            schedule[next_task[0]].append((max_ms_ind, next_task[1]))
-        # We delete that task from the all_jobs list to find the next task to execute
-        del all_jobs[max_ms_ind][0]
+            schedule[next_machine].append((next_job, next_task[1]))
+
+        # Remove the scheduled task from all_jobs
+        del all_jobs[next_job][0]
 
     return schedule
+
+
+def combinations_with_replacement(iterable, r):
+    """
+    Same function as in the itertools package.
+    Only difference is, that this creates lists instead of tuples.
+    """
+    # combinations_with_replacement('ABC', 2) --> AA AB AC BB BC CC
+    pool = list(iterable)
+    n = len(pool)
+    if not n and r:
+        return
+    indices = [0] * r
+    yield list(pool[i] for i in indices)
+    while True:
+        for i in reversed(range(r)):
+            if indices[i] != n - 1:
+                break
+        else:
+            return
+        indices[i:] = [indices[i] + 1] * (r - i)
+        yield list(pool[i] for i in indices)
+
+
+def combinations(all_jobs):
+    """
+    Create all allowed combinations of next tasks from an all_jobs nested list
+    :param all_jobs: Nested list of all jobs
+    :return: Nested list of all allowed combinations of next tasks
+    """
+    # Get the next tasks for every job in all_jobs
+    next_tasks = [[all_jobs[i][0][0], all_jobs[i][0][1], i] for i in range(len(all_jobs))]
+    # Create a list of all machines needed for the next tasks
+    next_machines = [task[0] for task in next_tasks]
+    # Get the number of different machines used in next_tasks
+    number_combs = len(set(next_machines))
+    # Create all possible combinations of the next_tasks
+    all_combs = list(combinations_with_replacement(next_tasks, number_combs))
+    # Empty list which will be filled with the allowed combinations
+    final_combs = []
+
+    # We iterate over all combinations and remove the infeasible ones
+    # E.g.: Combinations using the same machines get removed
+    for comb in all_combs:
+        c = []
+        for task in comb:
+            if task not in c:
+                c.append(task)
+        # We remove combinations using the same machines
+        db = [e[0] for e in c]
+        if len(db) == len(set(db)):
+            final_combs.append(c)
+
+    return final_combs
+
+
+def rollout(instance_path):
+    """
+    Create and print a schedule for every allowed combination of next tasks
+    :param instance_path: Instance path of the jssp file
+    :return: None
+    """
+    # Start time of the rollout
+    start_time = time.time()
+    # Reading in the data from the instance_path
+    _, _, all_jobs = read_jssp(instance_path)
+    # List of all allowed combinations for the rollout
+    final_combs = combinations(all_jobs)
+    # List of schedules to be filled for every combination
+    schedules = [[] for _ in final_combs]
+    # List of all_jobs for every combination
+    all_jobs_list = [[] for _ in final_combs]
+
+    # For every combination we fill the schedule with the task and remove those tasks from all_jobs
+    for i in range(len(final_combs)):
+        _, machines, all_jobs = read_jssp(instance_path)
+        schedule = [[] for _ in range(machines)]
+
+        for task in final_combs[i]:
+            schedule[task[0]].append((task[2], task[1]))
+            del all_jobs[task[2]][0]
+        schedules[i] = schedule
+        all_jobs_list[i] = all_jobs
+
+    makespans = []
+    # For every schedule we fill the remaining tasks using the greedy heuristic
+    for i in range(len(schedules)):
+        print(f"Schedule {i} before greedy heuristic:")
+        print_schedule(schedules[i])
+        print("")
+        schedules[i] = schedule_jobs(machines, all_jobs_list[i], schedule=schedules[i])
+        print(f"Final schedule {i}:")
+        print_schedule(schedules[i])
+        print_total_makespan(schedules[i])
+        makespans.append(total_makespan(schedules[i]))
+        print("")
+
+    print(f"The minimum total makespan is {min(makespans)} time units from schedule {np.argmin(makespans)}")
+    print("")
+    duration = time.time() - start_time
+    print(f"Time for the rollout: {duration} seconds")
+
+    return
 
 
 def print_schedule(schedule):
@@ -92,7 +204,6 @@ def print_schedule(schedule):
     Print out a schedule machine-wise
     :param schedule: Nested list of the schedule to print
     """
-    print("Schedule:")
     for i in range(len(schedule)):
         print(f"Machine {i}: {schedule[i]}")
 
@@ -102,7 +213,6 @@ def print_all_jobs(all_jobs):
     Print out the all_jobs list job-wise
     :param all_jobs: Nested list of all jobs
     """
-    print("All Jobs:")
     for i in range(len(all_jobs)):
         print(f"Job {i}: {all_jobs[i]}")
 
@@ -120,15 +230,16 @@ def print_total_makespan(schedule):
     print(f"The total makespan is: {max(time_per_machine)} time units")
 
 
-def remaining_tasks(all_jobs):
+def total_makespan(schedule):
     """
-    Calculate the number of remaining tasks in all_jobs
-    :param all_jobs: Nested list of all jobs
-    :return: Int. number of remaining tasks
+    Calculate the total makespan
+    :param schedule: Nested list of the schedule
+    :return Int. total makespan of the schedule
     """
-    number_tasks = 0
-    for job in all_jobs:
-        number_tasks += len(job)
+    time_per_machine = [0] * len(schedule)
+    for i in range(len(schedule)):
+        for j in range(len(schedule[i])):
+            time = schedule[i][j][1]
+            time_per_machine[i] += time
 
-    return number_tasks
-
+    return max(time_per_machine)
