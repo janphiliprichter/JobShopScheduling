@@ -83,12 +83,51 @@ def schedule_jobs(machines, all_jobs, schedule=None):
         # Find the earliest release time for the corresponding machine
         rt_machine = sum(x[1] for x in schedule[next_machine])
 
-        # Checking whether we can schedule the job straight away or if we need to insert idle time on the machine first
+        # Checking where to schedule the next task
+        # If the next task is not ready when the previous tasks on the machine are done,
+        # we need to insert idle time on the machine first
         if rt_job > rt_machine:
             schedule[next_machine].append((-1, (rt_job - rt_machine)))
             schedule[next_machine].append((next_job, next_task[1]))
-        else:
+        # If the next task is ready exactly when the previous tasks on the machine are done, we can append the next task
+        elif rt_job == rt_machine:
             schedule[next_machine].append((next_job, next_task[1]))
+        # If the next task is ready before the previous tasks on the machine are done, we need to check,
+        # if there is idle time scheduled on the machine already long enough to insert the next task.
+        else:
+            found_pause = False
+            rt = 0
+            for j in range(len(schedule[next_machine])):
+                rt += schedule[next_machine][j][1]
+                # When this statement is true, there is a window of idle time long enough and late enough
+                # to insert the next task. Now we have to find out how to exactly insert the next task
+                if rt >= rt_job + next_task[1] and schedule[next_machine][j][0] == -1:
+                    # When the next task is ready at the beginning of the idle time window we schedule
+                    # the next task as early as possible
+                    if rt_job <= rt - schedule[next_machine][j][1]:
+                        diff = schedule[next_machine][j][1] - next_task[1]
+                        schedule[next_machine][j] = (next_job, next_task[1])
+                        if diff > 0:
+                            # If the next task took less time than the idle time window, we fill up the remaining time
+                            # with idle time again
+                            schedule[next_machine].insert(j + 1, (-1, diff))
+                        found_pause = True
+                        break
+                    else:
+                        # If the next task is not ready at the beginning of the idle time window
+                        # we first insert idle time until the next task is ready, and the schedule the next task
+                        pt_before = rt_job - (rt - schedule[next_machine][j][1])
+                        pt_after = schedule[next_machine][j][1] - pt_before - next_task[1]
+                        schedule[next_machine][j] = (-1, pt_before)
+                        schedule[next_machine].insert(j + 1, (next_job, next_task[1]))
+                        found_pause = True
+                        # If there is still time left, we have to schedule the remaining idle time after the taskt
+                        if pt_after > 0:
+                            schedule[next_machine].insert(j + 2, (-1, pt_after))
+                        break
+            # If we did not find an idle time window big enough we have to append the next task to the machine
+            if not found_pause:
+                schedule[next_machine].append((next_job, next_task[1]))
 
         # Remove the scheduled task from all_jobs
         del all_jobs[next_job][0]
