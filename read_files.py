@@ -30,5 +30,3 @@ def read_jssp(filename):
                 all_jobs.append(job)
 
     return jobs, machines, all_jobs
-
-# original commit

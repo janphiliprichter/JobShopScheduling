@@ -1,6 +1,8 @@
 import time
 from read_files import read_jssp
 import numpy as np
+import random
+import copy
 
 
 def max_makespan(all_jobs):
@@ -69,7 +71,6 @@ def schedule_jobs(machines, all_jobs, schedule=None):
 
     # We schedule each of the remaining jobs
     for i in range(number_tasks):
-
         # Find next task to be scheduled
         next_job = max_makespan(all_jobs)
         next_task = all_jobs[next_job][0]
@@ -186,6 +187,9 @@ def combinations(all_jobs):
         if len(db) == len(set(db)):
             final_combs.append(c)
 
+    if len(final_combs) > 10:
+        final_combs = random.sample(final_combs, 10)
+
     return final_combs
 
 
@@ -264,8 +268,8 @@ def print_total_makespan(schedule):
     time_per_machine = [0] * len(schedule)
     for i in range(len(schedule)):
         for j in range(len(schedule[i])):
-            time = schedule[i][j][1]
-            time_per_machine[i] += time
+            t = schedule[i][j][1]
+            time_per_machine[i] += t
     print(f"The total makespan is: {max(time_per_machine)} time units")
 
 
@@ -278,7 +282,91 @@ def total_makespan(schedule):
     time_per_machine = [0] * len(schedule)
     for i in range(len(schedule)):
         for j in range(len(schedule[i])):
-            time = schedule[i][j][1]
-            time_per_machine[i] += time
+            t = schedule[i][j][1]
+            time_per_machine[i] += t
 
     return max(time_per_machine)
+
+
+
+def rollout2(instance_path):
+    """
+    Create and print a schedule for every allowed combination of next tasks
+    :param instance_path: Instance path of the jssp file
+    :return: None
+    """
+
+    # Start time of the rollout
+    start_time = time.time()
+    # Reading in the data from the instance_path
+    _, _, all_jobs = read_jssp(instance_path)
+    # List of all allowed combinations for the rollout
+    final_combs = combinations(all_jobs)
+    # List of schedules to be filled for every combination
+    schedules = [[] for _ in final_combs]
+    # List of all_jobs for every combination
+    all_jobs_list = [[] for _ in final_combs]
+
+    # For every combination we fill the schedule with the task and remove those tasks from all_jobs
+    for i in range(len(final_combs)):
+        _, machines, all_jobs = read_jssp(instance_path)
+        schedule = [[] for _ in range(machines)]
+
+        for task in final_combs[i]:
+            schedule[task[0]].append((task[2], task[1]))
+            del all_jobs[task[2]][0]
+        schedules[i] = schedule
+        all_jobs_list[i] = all_jobs
+
+    return all_jobs_list, schedules
+
+
+def multistep(instance_path, machines):
+
+    start_time = time.time()
+    all_jobs_list, schedules = rollout2(instance_path)
+
+    super_schedules = []
+    super_all_jobs = []
+
+    for i in range(len(schedules)):
+
+        final_combs = combinations(all_jobs_list[i])
+        schedules_new = [copy.deepcopy(schedules[i]) for _ in range(len(final_combs))]
+        all_jobs_list_new = [copy.deepcopy(all_jobs_list[i]) for _ in final_combs]
+
+        for j in range(len(final_combs)):
+            for task in final_combs[j]:
+                aux = [[] for _ in range(machines)]
+                aux[task[2]].append((task[0], task[1]))
+                schedules_new[j] = schedule_jobs(machines, aux, schedule=schedules_new[j])
+
+
+                #schedules_new[j][task[0]].append((task[2], task[1]))
+                del all_jobs_list_new[j][task[2]][0]
+
+            super_schedules.append(schedules_new[j])
+            super_all_jobs.append(all_jobs_list_new[j])
+
+
+    makespans = []
+
+    #For every schedule we fill the remaining tasks using the greedy heuristic
+    for i in range(len(super_schedules)):
+        print(f"Schedule {i} before greedy heuristic:")
+        print_schedule(super_schedules[i])
+        print("")
+        super_schedules[i] = schedule_jobs(machines, super_all_jobs[i], schedule=super_schedules[i])
+        print(f"Final schedule {i}:")
+        print_schedule(super_schedules[i])
+        print_total_makespan(super_schedules[i])
+        makespans.append(total_makespan(super_schedules[i]))
+        print("")
+
+    print(f"The minimum total makespan is {min(makespans)} time units from schedule {np.argmin(makespans)}")
+    print("")
+    duration = time.time() - start_time
+    print(f"Time for the multistep: {duration} seconds")
+
+    return
+
